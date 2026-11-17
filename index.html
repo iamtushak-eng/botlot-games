@@ -169,9 +169,9 @@ footer{margin-top:auto;padding:22px 4px 0;color:var(--dim);font-size:.84rem;disp
 
   <section class="empty" id="empty" hidden>
     <h2>No games found yet</h2>
-    <p>Put each game in this folder as three files with the same name:</p>
+    <p>Put each game in the <code>games</code> folder as three files with the same name:</p>
     <p><code>name.html</code> the game &nbsp; <code>name.png</code> the thumbnail &nbsp; <code>name.txt</code> the description</p>
-    <p id="why">On GitHub Pages new games appear on their own. On other hosts run <code>node scan.mjs</code> (or make it your build command) and it writes <code>games.json</code>. Opened from a folder on your computer? Choose the folder, or drop it on this page.</p>
+    <p id="why">On GitHub Pages new games appear on their own. On other hosts run <code>node scan.mjs</code> (or make it your build command) and it writes <code>games.json</code>. Opened from your computer? Choose the games folder, or drop it on this page.</p>
     <div class="row"><button class="pill" id="pick">Choose folder</button><button class="pill ghost" id="rescan">Scan again</button></div>
   </section>
   <p class="status" id="status"></p>
@@ -239,8 +239,8 @@ footer{margin-top:auto;padding:22px 4px 0;color:var(--dim);font-size:.84rem;disp
   function group(entries) {              // entries: [{name, url, file?}]
     const by = new Map();
     for (const e of entries) {
-      const n = e.name; if (!n || n.startsWith('.')) continue;
-      const k = stem(n).toLowerCase(), g = by.get(k) || { key: k, stem: stem(n) };
+      const full = e.name, n = full.split('/').pop(); if (!n || n.startsWith('.')) continue;
+      const k = (full.slice(0, full.length - n.length) + stem(n)).toLowerCase(), g = by.get(k) || { key: k, stem: stem(n) };
       if (isHtml(n) && !EXCLUDE_HTML.test(n)) { g.html = e; g.stem = stem(n); }
       else if (isImg(n)) { if (!g.img || /\.png$/i.test(n)) g.img = e; }
       else if (isTxt(n)) g.txt = e;
@@ -257,22 +257,23 @@ footer{margin-top:auto;padding:22px 4px 0;color:var(--dim);font-size:.84rem;disp
 
   /* ---- discovery: manifest, directory listing, GitHub Pages repo listing; results are merged ---- */
   const fetchT = (u, o = {}) => { const c = new AbortController(), t = setTimeout(() => c.abort(), 6000); return fetch(u, { cache: 'no-store', ...o, signal: c.signal }).finally(() => clearTimeout(t)); };
-  const rel = (n) => ({ name: decodeURIComponent(n).replace(/^\.\//, ''), url: encodeURI(decodeURIComponent(n).replace(/^\.\//, '')) });
+  const DIR = 'games/';  // every game lives in this folder: name.html + name.png + name.txt
+  const rel = (n, p = '') => { const f = p + decodeURIComponent(n).replace(/^\.\//, ''); return { name: f, url: encodeURI(f) }; };
   async function fromManifest() {
     const r = await fetchT('games.json'); if (!r.ok) return null;
     const j = await r.json(), out = [];
     for (const x of Array.isArray(j) ? j : j.files || j.games || []) {
-      if (typeof x === 'string') out.push(rel(x)); else for (const k of ['html', 'png', 'img', 'txt']) if (x[k]) out.push(rel(x[k]));
+      if (typeof x === 'string') out.push(rel(x, /\//.test(x) ? '' : DIR)); else for (const k of ['html', 'png', 'img', 'txt']) if (x[k]) out.push(rel(x[k], /\//.test(x[k]) ? '' : DIR));
     }
     return out.length ? { list: out, via: 'games.json' } : null;
   }
   async function fromListing() {
-    const r = await fetchT('./'); if (!r.ok) return null;
+    const r = await fetchT(DIR); if (!r.ok) return null;
     const type = r.headers.get('content-type') || ''; if (!/html/.test(type)) return null;
     const doc = new DOMParser().parseFromString(await r.text(), 'text/html'), out = [];
     for (const a of doc.querySelectorAll('a[href]')) {
       const h = a.getAttribute('href'); if (!h || /^([a-z]+:|\/|\?|#|\.\.)/i.test(h) || h.endsWith('/')) continue;
-      out.push(rel(h.split('?')[0]));
+      out.push(rel(h.split('?')[0], DIR));
     }
     return out.some((e) => isHtml(e.name) && !EXCLUDE_HTML.test(e.name)) ? { list: out, via: 'folder listing' } : null;
   }
@@ -280,8 +281,8 @@ footer{margin-top:auto;padding:22px 4px 0;color:var(--dim);font-size:.84rem;disp
     const h = location.hostname, m = document.querySelector('meta[name="botlot-repo"]'), cfg = m && /^[\w.-]+\/[\w.-]+$/.test(m.content) ? m.content : '';
     if (!cfg && !h.endsWith('.github.io')) return null;
     const seg = location.pathname.split('/').filter(Boolean)[0], slug = cfg || `${h.split('.')[0]}/${seg && !isHtml(seg) ? seg : h}`;
-    const r = await fetchT(`https://api.github.com/repos/${slug}/contents/`); if (!r.ok) return null;
-    const j = await r.json(); return { list: j.filter((f) => f.type === 'file').map((f) => rel(f.name)), via: 'GitHub repo' };
+    const r = await fetchT(`https://api.github.com/repos/${slug}/contents/${DIR.replace('/', '')}`); if (!r.ok) return null;
+    const j = await r.json(); return { list: j.filter((f) => f.type === 'file').map((f) => rel(f.name, DIR)), via: 'GitHub repo' };
   }
   async function discover() {
     const found = [], via = [];

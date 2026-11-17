@@ -1,8 +1,8 @@
-// Finds games in this folder and writes games.json for index.html.
+// Finds games in the games/ folder and writes games.json (next to index.html) for the site.
 // A game = <name>.html (the game) + <name>.png (thumbnail) + <name>.txt (description). Run: node scan.mjs
 // Use it as the build command on Cloudflare Pages / Netlify, or let the GitHub Action do it on every push.
 import fs from 'node:fs'; import path from 'node:path';
-const dir = path.resolve(process.argv[2] || path.dirname(new URL(import.meta.url).pathname));
+const root = path.resolve(process.argv[2] || path.dirname(new URL(import.meta.url).pathname)), dir = path.join(root, 'games');
 const skip = /^(index|404|403|500|offline)\.html?$/i, by = new Map();
 for (const n of fs.readdirSync(dir)) {
   if (n.startsWith('.') || !fs.statSync(path.join(dir, n)).isFile()) continue;
@@ -12,6 +12,6 @@ for (const n of fs.readdirSync(dir)) {
   else if (/\.txt$/i.test(n)) g.txt = n;
   by.set(k, g);
 }
-const games = [...by.values()].filter((g) => g.html).sort((a, b) => a.html.localeCompare(b.html));
-fs.writeFileSync(path.join(dir, 'games.json'), JSON.stringify(games, null, 2) + '\n');
+const games = [...by.values()].filter((g) => g.html).sort((a, b) => a.html.localeCompare(b.html)).map((g) => Object.fromEntries(Object.entries(g).map(([k, v]) => [k, 'games/' + v])));
+fs.writeFileSync(path.join(root, 'games.json'), JSON.stringify(games, null, 2) + '\n');
 console.log(`games.json: ${games.length} game(s)`, games.map((g) => g.html).join(', '));
