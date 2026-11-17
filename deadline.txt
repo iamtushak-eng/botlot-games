@@ -1,2 +1,0 @@
-Deadline
-A 90-second obstacle course that is the same for everyone and resets at midnight UTC. One life per ride, and every ride can be attempted once a day: on foot, skateboard or bike. Custom-built physics, a new setting every day, and a look at yesterday's field once you are done.
